@@ -1,0 +1,83 @@
+- name: 7_configure_telegraf.yaml
+  hosts: rpi
+  remote_user: ubuntu
+  tasks:
+    - name: Create the new configmap for telegraf and update the fake passwords
+      shell: |
+        cat << EOF >> /home/ubuntu/ansible/new_telegraf_cm.yaml
+        apiVersion: v1
+        data:
+          telegraf.conf: |2
+            [agent]
+              collection_jitter = "0s"
+              debug = false
+              flush_interval = "10s"
+              flush_jitter = "0s"
+              hostname = "$HOSTNAME"
+              interval = "10s"
+              logfile = ""
+              metric_batch_size = 1000
+              metric_buffer_limit = 10000
+              omit_hostname = false
+              precision = ""
+              quiet = false
+              round_interval = true
+            [[processors.enum]]
+              [[processors.enum.mapping]]
+                dest = "status_code"
+                field = "status"
+                [processors.enum.mapping.value_mappings]
+                    critical = 3
+                    healthy = 1
+                    problem = 2
+            [[inputs.mqtt_consumer]]
+              servers = ["tcp://rpi-mqtt-mosquitto:1883"]
+              topics = [
+                "renogy/dcc50s",
+              ]
+                qos = 0
+                username = "mqtt"
+                password = "mqttpass"
+                data_format = "json"
+            [[outputs.influxdb]]
+            urls = ["http://rpi-influxdb:8086"]
+              database = "telegraf-solarmon"
+              username = "admin"
+              password = "telegrafpass"
+            [[outputs.health]]
+              service_address = "http://:8888"
+              [[outputs.health.compares]]
+                field = "buffer_size"
+                lt = 5000.0
+              [[outputs.health.contains]]
+                field = "buffer_size"
+            [[inputs.internal]]
+              collect_memstats = false
+        kind: ConfigMap
+        metadata:
+          name: rpi-telegraf
+          namespace: solarmon
+        EOF
+        . /boot/firmware/rpi-vars.txt
+        sed -i 's|password = "mqttpass"|password = "'"$ubuntupassword"'"|' /home/ubuntu/ansible/new_telegraf_cm.yaml
+        sed -i 's|password = "telegrafpass"|password = "'"$ubuntupassword"'"|' /home/ubuntu/ansible/new_telegraf_cm.yaml
+
+    - name: Delete the current and apply the new configmap for telegraf, then redeploy
+      shell: |
+        microk8s kubectl delete cm rpi-telegraf -n solarmon
+        microk8s kubectl apply -f /home/ubuntu/ansible/new_telegraf_cm.yaml
+        microk8s kubectl rollout restart deployment.apps/rpi-telegraf -n solarmon
+
+    - name: Check to make sure telegraf restarted successfully
+      shell: |
+        sleep 10
+        microk8s kubectl get pod -n solarmon | grep rpi-telegraf | grep -w Running| wc -l
+      register: result
+      until: result.stdout.find("1") != -1
+      retries: 180
+      delay: 10
+
+    - name: Install numpy via pip3 (for python int16 functionality)
+      shell: |
+        pip3 install numpy
+      remote_user: root

@@ -1,0 +1,19 @@
+- name: 2_configure_microk8s.yaml
+  hosts: rpi
+  remote_user: ubuntu
+  tasks:
+    - name: Enable microk8s addons
+      shell: |
+        microk8s enable dns helm3 ingress metallb:{{ internal_network_metallb_start_ip }}-{{ internal_network_metallb_end_ip }} rbac registry storage
+
+    - name: Configure iptables to forward
+      shell: |
+        iptables -P FORWARD ACCEPT
+      remote_user: root
+
+    - name: Enable helm repos
+      shell: |
+        microk8s helm3 repo add stable https://kubernetes-charts.storage.googleapis.com/
+        microk8s helm3 repo add t3n https://storage.googleapis.com/t3n-helm-charts
+        microk8s helm3 repo add influxdata https://helm.influxdata.com/
+        microk8s helm3 repo add grafana https://grafana.github.io/helm-charts

@@ -1,0 +1,48 @@
+- name: 4_install_influxdb.yaml
+  hosts: rpi
+  remote_user: ubuntu
+  tasks:
+    - name: Install influxdb-client
+      yum:
+        name:
+          - influxdb-client
+        state: present
+      remote_user: root
+
+    - name: Create auth secret, install influxdb via Helm, patch to have second IP in metallb range as assigned IP
+      shell: |
+        set timeout 1200
+        . /boot/firmware/rpi-vars.txt
+        microk8s kubectl create secret generic influxdb-auth -n solarmon --from-literal=influxdb-user=admin --from-literal=influxdb-password=$ubuntupassword
+        microk8s helm3 install --timeout 20m rpi-influxdb influxdata/influxdb --set image.tag=1.8 --set persistence.enabled=true,persistence.size=8Gi,config.http.auth-enabled=true,setDefaultUser.enabled=true,setDefaultUser.image=nerzhul/curl-arm64,setDefaultUser.user.existingSecret=influxdb-auth,service.type=LoadBalancer -n solarmon
+        microk8s kubectl patch svc rpi-influxdb -p '{"spec": {"loadBalancerIP": "{{ internal_network_metallb_start_ip  | ipmath(1) }}"}}' -n solarmon
+
+    - name: Check to make sure helm install of influxdb succeeded
+      shell: |
+        microk8s helm3 ls -n solarmon | grep rpi-influxdb | grep -w deployed | wc -l
+      register: result
+      until: result.stdout.find("1") != -1
+      retries: 180
+      delay: 10
+
+    - name: Update /etc/hosts file for influxdb record
+      shell: |
+        cat << EOF >> /etc/hosts
+        {{ internal_network_metallb_start_ip | ipmath(1) }} rpi-influxdb.{{ microk8s_info_top_domain }}
+
+        EOF
+      remote_user: root
+
+    - name: Restart dnsmasq
+      service:
+        name: dnsmasq
+        state: started
+      remote_user: root
+
+    - name: Check for running status of influxdb pod
+      shell: |
+        microk8s kubectl get pod -n solarmon | grep rpi-influxdb | grep -w Running| wc -l
+      register: result
+      until: result.stdout.find("1") != -1
+      retries: 180
+      delay: 10

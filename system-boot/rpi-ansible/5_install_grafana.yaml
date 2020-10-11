@@ -1,0 +1,41 @@
+- name: 5_install_grafana.yaml
+  hosts: rpi
+  remote_user: ubuntu
+  tasks:
+    - name: Create auth secret, install grafana via helm, patch to have third IP in metallb range as assigned IP
+      shell: |
+        set timeout 1200
+        . /boot/firmware/rpi-vars.txt
+        microk8s kubectl create secret generic grafana-auth -n solarmon --from-literal=admin-user=admin --from-literal=admin-password=$ubuntupassword
+        microk8s helm3 install --timeout 20m rpi-grafana grafana/grafana --set admin.existingSecret=grafana-auth,service.type=LoadBalancer,persistence.enabled=true,persistence.size=1Gi -n solarmon
+        microk8s kubectl patch svc rpi-grafana -p '{"spec": {"loadBalancerIP": "{{ internal_network_metallb_start_ip  | ipmath(2) }}"}}' -n solarmon
+
+    - name: Check to make sure helm install of grafana succeeded
+      shell: |
+        microk8s helm3 ls -n solarmon | grep rpi-grafana | grep -w deployed | wc -l
+      register: result
+      until: result.stdout.find("1") != -1
+      retries: 180
+      delay: 10
+
+    - name: Update /etc/hosts file for grafana record
+      shell: |
+        cat << EOF >> /etc/hosts
+        {{ internal_network_metallb_start_ip | ipmath(2) }} rpi-grafana.{{ microk8s_info_top_domain }}
+
+        EOF
+      remote_user: root
+
+    - name: Restart dnsmasq
+      service:
+        name: dnsmasq
+        state: started
+      remote_user: root
+
+    - name: Check for running status of grafana pod
+      shell: |
+        microk8s kubectl get pod -n solarmon | grep rpi-grafana | grep -w Running| wc -l
+      register: result
+      until: result.stdout.find("1") != -1
+      retries: 180
+      delay: 10

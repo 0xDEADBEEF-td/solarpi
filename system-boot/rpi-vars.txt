@@ -1,0 +1,28 @@
+##### PASSWORDS #####
+## These are the passwords that your system will be setup with
+# This is the password for the user 'ubuntu', and for all service-related accounts (mqtt, grafana, etc...)
+ubuntupassword='default'
+
+# This is the password for the user 'root'
+rootpassword='default'
+
+##### NETWORK #####
+## These are the network variables for your specific LAN
+# This is the main IP address of the rpi on your network, in CIDR format
+net_ip_address='192.168.1.10/24'
+
+# This is the default gateway (router) on your local network
+net_def_gw='192.168.1.1'
+
+# This is your DNS server on your local network
+net_dns_ip='192.168.1.1'
+
+# This is your local domain name on your local network (the hostname 'rpi' will be added to this for your FQDN, i.e, rpi.lan.local
+net_rpi_tldn='lan.local'
+
+## There are a total of 6 IP addresses necessary, one of which you have defined above (net_ip_address). I need 5 more in a contiguous range, so please set the start and end range I can use below.
+# This is the start IP address for the additional 5 IP addresses
+net_metallb_start_ip='192.168.1.11'
+
+# This is the end IP address for the additional 5 IP addresses
+net_metallb_end_ip='192.168.1.15'

@@ -1,0 +1,8 @@
+[Unit]
+After=ssh.service
+
+[Service]
+ExecStart=/home/ubuntu/ansible/rpi-setup.sh
+
+[Install]
+WantedBy=default.target

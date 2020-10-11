@@ -1,0 +1,20 @@
+- name: rpi_microk8s_setup_playbook
+  hosts: rpi
+  remote_user: root
+  tasks:
+    - set_fact: rpi_internal_ip='192.168.2.2'
+    - set_fact: internal_network_metallb_start_ip='192.168.2.3'
+    - set_fact: internal_network_metallb_end_ip='192.168.2.7'
+    - set_fact: microk8s_info_cluster_name='microk8s'
+    - set_fact: microk8s_info_top_domain='fakeboot.local'
+
+
+- import_playbook: 0_setup_dns.yaml
+- import_playbook: 1_install_microk8s.yaml
+- import_playbook: 2_configure_microk8s.yaml
+- import_playbook: 3_install_mosquitto.yaml
+- import_playbook: 4_install_influxdb.yaml
+- import_playbook: 5_install_grafana.yaml
+- import_playbook: 6_install_telegraf.yaml
+- import_playbook: 7_configure_telegraf.yaml
+- import_playbook: 99_setup_complete.yaml

@@ -1,0 +1,41 @@
+- name: 0_setup_dns
+  hosts: rpi
+  remote_user: root
+  tasks:
+    - name: Prep for iptables-persistent install
+      shell: |
+        echo iptables-persistent iptables-persistent/autosave_v4 boolean true | sudo debconf-set-selections
+        echo iptables-persistent iptables-persistent/autosave_v6 boolean true | sudo debconf-set-selections
+
+    - name: Install net-tools, dnsmasq, python3-pip, and iptables-persistent
+      yum:
+        name:
+          - net-tools
+          - dnsmasq
+          - python3-pip
+          - iptables-persistent
+        state: present
+
+    - name: Create dnsmasq config for microk8s
+      shell: |
+        cat <<EOF > /etc/dnsmasq.d/microk8s-network.conf
+
+        expand-hosts
+
+        domain={{ microk8s_info_top_domain }}
+
+        EOF
+
+#    - name: Edit dnsmasq so that it will answer requests from the microk8s subnets
+#      shell: |
+#        sed -i "s|$DNSMASQ_OPTS --local-service|$DNSMASQ_OPTS|" /etc/init.d/dnsmasq
+
+    - name: Restart dnsmasq
+      service:
+        name: dnsmasq
+        state: started
+
+    - name: Enable dnsmasq
+      service:
+        name: dnsmasq
+        enabled: yes

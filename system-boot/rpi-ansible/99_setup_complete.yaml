@@ -1,0 +1,35 @@
+- name: 99_setup_complete
+  hosts: rpi
+  remote_user: root
+  tasks:
+    - name: Disable rpi-setup.service
+      service:
+        name: rpi-setup
+        enabled: no
+
+#    - name: Remove all of the files in the ansible directory to clean up after ourselves
+#      file:
+#        path: /boot/firmware/rpi-ansible
+#        state: absent
+
+#    - name: Remove the rpi-vars.txt file to clean up after ourselves
+#      file:
+#        path: /boot/firmware/rpi-vars.txt
+
+#    - name: Remove the runcmd stanza from /boot/firmware/user-data
+#      replace:
+#        path: /boot/firmware/user-data
+#        regexp: '^\runcmd:[^[]+'
+#        replace: ''
+#        backup: no
+
+#    - name: Remove the fake network stanza from /boot/firmware/network-config
+#      replace:
+#        path: /boot/firmware/network-config
+#        regexp: '^\version: 2[^[]+'
+#        replace: ''
+#        backup: no
+
+    - name: Final reboot
+      shell: |
+        reboot now

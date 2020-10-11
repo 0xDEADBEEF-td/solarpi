@@ -1,0 +1,46 @@
+#cloud-config
+
+# This is the user-data configuration file for cloud-init. By default this sets
+# up an initial user called "ubuntu" with password "ubuntu", which must be
+# changed at first login. However, many additional actions can be initiated on
+# first boot from this file. The cloud-init documentation has more details:
+#
+# https://cloudinit.readthedocs.io/
+#
+# Some additional examples are provided in comments below the default
+# configuration.
+
+# Set ubuntu and root user to user-desired password and do not expire
+chpasswd:
+  expire: false
+  list:
+  - ubuntu:default
+  - root:default
+
+# Enable password authentication with the SSH daemon
+ssh_pwauth: true
+
+## Write arbitrary files to the file-system (including binaries!)
+write_files:
+  - content: |
+        network:
+          version: 2
+          ethernets:
+            eth0:
+              addresses: [192.168.2.2/24]
+              gateway4: 192.168.2.1
+              nameservers:
+                addresses: [192.168.2.1, 8.8.8.8]
+                search: [rpi.local]
+              optional: true
+    path: /etc/netplan/config.yaml
+
+
+## Run the shell scripts to configure the system, prep for ansible run, and reboot.
+runcmd:
+- [ /boot/firmware/rpi-ansible/cloud-init_passwd-setup.sh ]
+- [ /boot/firmware/rpi-ansible/cloud-init_net-setup.sh ]
+- [ /boot/firmware/rpi-ansible/cloud-init_package-mgmt.sh ]
+- [ /boot/firmware/rpi-ansible/cloud-init_sshd-dns.sh ]
+- [ /boot/firmware/rpi-ansible/cloud-init_ansible-ssh.sh ]
+- reboot

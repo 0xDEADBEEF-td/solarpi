@@ -1,0 +1,74 @@
+- name: 3_install_mosquitto.yaml
+  hosts: rpi
+  remote_user: ubuntu
+  tasks:
+    - name: Install mosquitto (only for mosquitto_passwd) and mosquitto-clients
+      yum:
+        name:
+          - mosquitto
+          - mosquitto-clients
+        state: present
+      remote_user: root
+
+    - name: Create solarmon namespace, install mosquitto via Helm, patch to have first IP in metallb range as assigned IP
+      shell: |
+        set timeout 1200
+        touch /home/ubuntu/mqtt-basicauth
+        . /boot/firmware/rpi-vars.txt
+        mosquitto_passwd -b /home/ubuntu/mqtt-basicauth mqtt $ubuntupassword
+        microk8s kubectl create namespace solarmon
+        microk8s helm3 install --timeout 20m rpi-mqtt t3n/mosquitto --version 2.0.0 --set persistence.size=2Gi,service.type=LoadBalancer,authentication.passwordEntries=$(cat /home/ubuntu/mqtt-basicauth) -n solarmon
+        microk8s kubectl patch svc rpi-mqtt-mosquitto -p '{"spec": {"loadBalancerIP": "{{ internal_network_metallb_start_ip }}"}}' -n solarmon
+
+    - name: Check to make sure helm install of mosquitto succeeded
+      shell: |
+        microk8s helm3 ls -n solarmon | grep rpi-mqtt | grep -w deployed | wc -l
+      register: result
+      until: result.stdout.find("1") != -1
+      retries: 180
+      delay: 10
+
+    - name: Install minimalmodbus and paho-mqtt via pip3 (for python modbus/mqtt functionality)
+      shell: |
+        pip3 install minimalmodbus paho-mqtt
+      remote_user: root
+
+    - name: Uninstall mosquitto (mosquitto_passwd no longer needed)
+      yum:
+        name:
+          - mosquitto
+        state: absent
+      remote_user: root
+
+    - name: Update /etc/hosts file for mqtt record
+      shell: |
+        cat << EOF >> /etc/hosts
+        {{ internal_network_metallb_start_ip }} rpi-mqtt-mosquitto.{{ microk8s_info_top_domain }}
+
+        EOF
+      remote_user: root
+
+    - name: Restart dnsmasq
+      service:
+        name: dnsmasq
+        state: started
+      remote_user: root
+
+    - name: Check for running status of mqtt pod
+      shell: |
+        microk8s kubectl get pod -n solarmon | grep rpi-mqtt-mosquitto | grep -w Running| wc -l
+      register: result
+      until: result.stdout.find("1") != -1
+      retries: 180
+      delay: 10
+
+    - name: Create the topic for Renogy dcc50s stats
+      shell: |
+        . /boot/firmware/rpi-vars.txt
+        mosquitto_sub -h rpi-mqtt-mosquitto.{{ microk8s_info_top_domain }} -t renogy/dcc50s -q 0 -u mqtt -P $ubuntupassword -E
+        echo $?
+      register: result
+      until: result.stdout.find("0") != -1
+      retries: 180
+      delay: 10
+
