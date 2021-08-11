@@ -1,0 +1,8 @@
+# Copy this file and rename as config.py and then input your own vars
+serial_dev = '/dev/ttyUSB0'
+broker_url = '192.168.1.1'
+broker_port = 1883
+broker_auth = { 'username':"test", 'password':"test" }
+broker_tls = {'ca_certs': ""}
+topic = "example/topic"
+client_id = "super-van"
